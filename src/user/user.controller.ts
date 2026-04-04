@@ -1,9 +1,19 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { User } from './user.service';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { CatchInterceptor } from 'src/common/interceptors/catch.interceptor';
 
 @Controller('users')
+// 控制器级别的拦截 支持多个
+// @UseInterceptors(LoggingInterceptor, CatchInterceptor)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
@@ -12,6 +22,8 @@ export class UserController {
    * @returns 用户列表
    */
   @Get()
+  // 方法级别拦截
+  @UseInterceptors(CatchInterceptor)
   findAll(): User[] {
     return this.userService.findAll();
   }
