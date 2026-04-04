@@ -8,9 +8,12 @@ async function bootstrap() {
   // 启用全局验证管道
   app.useGlobalPipes(
     new ValidationPipe({
-      // whitelist: true, // 自动移除 DTO 中未定义的属性
-      // forbidNonWhitelisted: true, // 当有未定义的属性时抛出错误
-      // transform: true, // 自动转换类型
+      whitelist: true, // 自动移除 DTO 中未定义的属性
+      forbidNonWhitelisted: true, // 当有未定义的属性时抛出错误
+      transform: true, // 自动转换类型
+      transformOptions: {
+        enableImplicitConversion: true, // 启动隐式转化
+      },
     }),
   );
 

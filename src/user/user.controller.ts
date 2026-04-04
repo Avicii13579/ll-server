@@ -5,6 +5,8 @@ import {
   Param,
   Post,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import type { User } from './user.service';
 import { UserService } from './user.service';
@@ -44,6 +46,13 @@ export class UserController {
    * @returns 创建的用户对象
    */
   @Post()
+  // 局部通过 pipe 配置 DTO 校验
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  )
   create(@Body() CreateUserDto: CreateUserDto): User {
     return this.userService.create(CreateUserDto);
   }
