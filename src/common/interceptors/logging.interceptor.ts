@@ -16,6 +16,15 @@ export interface ResponseFormate<T = any> {
   path: string;
 }
 
+/**
+ * 日志级别：
+ * loger.log() 一般信息
+ * logger.warn() 警告信息
+ * logger.error() 错误信息
+ * logger.debug() 调试信息
+ * logger.verbose() 详细信息
+ */
+
 // @Injectable()
 /**
  * NestInterceptor<T, ResponseFormate<T>> 第一个参数T：进入拦截器时返回的业务数据类型，第二个参数ResponseFormate<T>：离开拦截器时格式化后的数据

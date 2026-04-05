@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  // DefaultValuePipe,
+  Injectable,
+  NotFoundException,
+  // ParseIntPipe,
+  // Query,
+} from '@nestjs/common';
 
 /**
  * 用户接口
@@ -11,6 +17,8 @@ export interface User {
 
 @Injectable()
 export class UserService {
+  cache = new Map<number, User>();
+
   private users: User[] = [
     { id: 1, name: '张三', email: 'zhangsan@example.com' },
     { id: 2, name: '李四', email: 'lisi@example.com' },
@@ -21,7 +29,9 @@ export class UserService {
    * 查询所有用户
    * @returns 用户列表
    */
-  findAll(): User[] {
+  findAll() // @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  // @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  : User[] {
     return this.users;
   }
 
@@ -31,6 +41,10 @@ export class UserService {
    * @returns 用户对象
    */
   findOne(id: number): User {
+    const cached = this.cache.get(id);
+    if (cached !== undefined) {
+      return cached;
+    }
     const user = this.users.find((user) => user.id === id);
     if (!user) {
       throw new NotFoundException(`用户 ID ${id} 不存在`);

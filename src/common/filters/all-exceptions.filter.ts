@@ -8,6 +8,16 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+/**
+ * 错误类型使用的异常类：
+ * BadRequestException 参数失败
+ * UnauthorizedException 未授权
+ * ForbiddenException 没有权限
+ * NotFoundException 资源不存在
+ * ConflictException 资源冲突
+ * InternalServerErrorException 服务器错误
+ */
+
 // 创建统一异常过滤器
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
