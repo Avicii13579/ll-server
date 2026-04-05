@@ -1,7 +1,6 @@
 import { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
 import type { Request } from 'express';
-import { Observable, of } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, of, tap } from 'rxjs';
 
 // 实际项目中可以使用 redis 替换
 export class CatchInterceptor implements NestInterceptor {

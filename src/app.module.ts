@@ -12,10 +12,21 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { ConfigValidationSchema } from './config/config.schema';
+import { DatabaseModule } from './database/database.module';
+import { InterviewModule } from './interview/interview.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+      validationSchema: ConfigValidationSchema, // 用 ConfigValidationSchema 校验环境变量
+      validationOptions: {
+        allowUnknown: true, // 允许出现ConfigValidationSchema为定义的变量
+        abortEarly: true, // 遇到第一错误就停下
+      },
+    }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     UserModule,
     JwtModule.registerAsync({
@@ -26,6 +37,8 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
       }),
       inject: [ConfigService],
     }),
+    DatabaseModule,
+    InterviewModule,
   ],
   controllers: [AppController],
   providers: [

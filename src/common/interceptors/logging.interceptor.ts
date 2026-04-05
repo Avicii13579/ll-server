@@ -6,8 +6,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, tap } from 'rxjs';
 
 export interface ResponseFormate<T = any> {
   code: number;

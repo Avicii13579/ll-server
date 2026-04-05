@@ -5,8 +5,7 @@ import {
   // Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, map } from 'rxjs';
 import type { Request } from 'express';
 
 export interface ResponseFormate<T = any> {
