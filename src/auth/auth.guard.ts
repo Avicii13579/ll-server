@@ -15,6 +15,11 @@ export class AuthGuard implements CanActivate {
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
+    const path = request.path ?? request.url?.split('?')[0] ?? '';
+    // 与 main.ts 中 Swagger jsonDocumentUrl（默认 openapi.json → 根路径 /openapi.json）一致
+    if (path.startsWith('/api-docs') || path === '/openapi.json') {
+      return true;
+    }
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {

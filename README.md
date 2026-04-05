@@ -65,3 +65,11 @@ $ pnpm run lint
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## 在 Apifox 里关联本项目的 Swagger
+
+- 先启动服务（保证能访问到接口）。
+- Apifox：导入 → 选 OpenAPI / Swagger → URL。
+- 填写：http://127.0.0.1:3000/openapi.json
+  （端口以你实际 PORT 为准；局域网/部署环境把主机改成对应域名或 IP。）
+- 导入后可再设环境变量里的 baseUrl，与 Nest 监听地址一致。
