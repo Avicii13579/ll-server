@@ -1,38 +1,20 @@
-import {
-  // DefaultValuePipe,
-  Injectable,
-  NotFoundException,
-  // ParseIntPipe,
-  // Query,
-} from '@nestjs/common';
-
-/**
- * 用户接口
- */
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './schemas/user.schema';
 @Injectable()
 export class UserService {
-  cache = new Map<number, User>();
-
-  private users: User[] = [
-    { id: 1, name: '张三', email: 'zhangsan@example.com' },
-    { id: 2, name: '李四', email: 'lisi@example.com' },
-    { id: 3, name: '王五', email: 'wangwu@example.com' },
-  ];
-
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
   /**
    * 查询所有用户
    * @returns 用户列表
    */
-  findAll() // @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  // @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   // @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  : User[] {
-    return this.users;
+  async findAll(): Promise<User[]> {
+    return this.userModel.find().exec();
   }
 
   /**
@@ -40,29 +22,30 @@ export class UserService {
    * @param id - 用户ID
    * @returns 用户对象
    */
-  findOne(id: number): User {
-    const cached = this.cache.get(id);
-    if (cached !== undefined) {
-      return cached;
-    }
-    const user = this.users.find((user) => user.id === id);
-    if (!user) {
-      throw new NotFoundException(`用户 ID ${id} 不存在`);
-    }
-    return user;
+  async findOne(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec();
   }
 
   /**
    * 创建新用户
-   * @param user - 用户信息（不包含id）
-   * @returns 创建的用户对象
    */
-  create(user: Omit<User, 'id'>): User {
-    const newUser: User = {
-      id: this.users.length + 1,
-      ...user,
-    };
-    this.users.push(newUser);
-    return newUser;
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    return this.userModel.create(createUserDto);
+  }
+
+  /**
+   * 更新用户（部分字段）
+   */
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
+    return this.userModel
+      .findByIdAndUpdate(id, updateUserDto, { new: true }) // new：支持返回新数据
+      .exec();
+  }
+
+  /**
+   * 删除用户
+   */
+  async delete(id: string): Promise<User | null> {
+    return this.userModel.findByIdAndDelete(id).exec();
   }
 }

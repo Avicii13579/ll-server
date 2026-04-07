@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Post,
+  Put,
   Req,
   UseFilters,
   UseGuards,
@@ -13,16 +16,17 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import type { User } from './user.service';
+import type { User } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CatchInterceptor } from 'src/common/interceptors/catch.interceptor';
-import { AuthGuard } from 'src/auth/auth.guard';
+// import { AuthGuard } from 'src/auth/auth.guard';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import type { JwtAuthUser } from 'src/auth/jwt.strategy';
 import { RoleGuard, Roles } from 'src/role/role.guard';
 import { HttpExceptionFilter } from 'src/common/filters/http-exceptions.filter';
 import { ValidationExceptionFilter } from 'src/common/filters/validation-exceptions.filter';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 interface AuthenticatedRequest extends Request {
   user: JwtAuthUser;
@@ -30,7 +34,7 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('users')
 @UseFilters(HttpExceptionFilter)
-@UseGuards(AuthGuard) // 使用守卫
+// @UseGuards(AuthGuard) // 使用守卫
 // 控制器级别的拦截 支持多个
 // @UseInterceptors(LoggingInterceptor, CatchInterceptor)
 export class UserController {
@@ -59,7 +63,7 @@ export class UserController {
   @Get()
   // 方法级别拦截
   @UseInterceptors(CatchInterceptor)
-  findAll(): User[] {
+  async findAll(): Promise<User[]> {
     return this.userService.findAll();
   }
 
@@ -69,11 +73,11 @@ export class UserController {
    * @returns 用户对象或undefined
    */
   @Get(':id')
-  findOne(@Param('id') id: number): User | undefined {
-    if (id > 100) {
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<User | null> {
+    if (id > 1000) {
       throw new NotFoundException(`用户 ID ${id} 不存在`);
     }
-    return this.userService.findOne(+id);
+    return this.userService.findOne(id.toString());
   }
 
   /**
@@ -90,7 +94,20 @@ export class UserController {
     }),
   )
   @UseFilters(ValidationExceptionFilter)
-  create(@Body() CreateUserDto: CreateUserDto): User {
+  async create(@Body() CreateUserDto: CreateUserDto): Promise<User> {
     return this.userService.create(CreateUserDto);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<User | null> {
+    return this.userService.update(id.toString(), updateUserDto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number): Promise<User | null> {
+    return this.userService.delete(id.toString());
   }
 }

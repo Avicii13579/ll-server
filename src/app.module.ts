@@ -6,7 +6,7 @@ import { LoggerMiddleware } from './common/middleware/log.middleware';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { AuthGuard } from './auth/auth.guard';
+// import { AuthGuard } from './auth/auth.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
@@ -15,6 +15,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ConfigValidationSchema } from './config/config.schema';
 import { DatabaseModule } from './database/database.module';
 import { InterviewModule } from './interview/interview.module';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { InterviewModule } from './interview/interview.module';
         abortEarly: true, // 遇到第一错误就停下
       },
     }),
+    MongooseModule.forRoot('mongodb://localhost:27017/my_nest_app'),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     UserModule,
     JwtModule.registerAsync({
@@ -53,10 +55,10 @@ import { InterviewModule } from './interview/interview.module';
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
     },
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: AuthGuard,
+    // },
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
