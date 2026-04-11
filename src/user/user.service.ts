@@ -78,10 +78,9 @@ export class UserService {
   /** 注册 */
   async register(registerDto: RegisterDto) {
     const { username, email, password } = registerDto;
-    console.log(username, email);
     // 检查用户名是否存在
     const existingUser = await this.userModel.findOne({
-      $or: [{ username }, { username }],
+      $or: [{ username }, { email }],
     });
     if (existingUser) {
       throw new BadRequestException('用户名或邮箱已存在');
@@ -119,7 +118,7 @@ export class UserService {
       throw new UnauthorizedException('邮箱或密码不正确');
     }
 
-    // 生成token
+    // 生成token，支持前端免密获取数据
     const token = this.jwtService.sign({
       userId: user._id.toString(),
       username: user.username,
