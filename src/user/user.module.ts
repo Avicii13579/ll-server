@@ -9,7 +9,7 @@ import { UserSchema, User } from './schemas/user.schema';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]), // 注册 UserSchema 数据库
   ],
   controllers: [UserController],
   providers: [UserService, JwtAuthGuard],

@@ -16,6 +16,7 @@ import { ConfigValidationSchema } from './config/config.schema';
 import { DatabaseModule } from './database/database.module';
 import { InterviewModule } from './interview/interview.module';
 import { MongooseModule } from '@nestjs/mongoose';
+import { getTokenExpirationSeconds } from './common/utils/jwt.util';
 
 @Module({
   imports: [
@@ -33,11 +34,16 @@ import { MongooseModule } from '@nestjs/mongoose';
     UserModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'secret-key',
-        signOptions: { expiresIn: '24h' },
-      }),
+      useFactory: (config: ConfigService) => {
+        return {
+          secret: config.get<string>('JWT_SECRET') || 'secret-key',
+          signOptions: {
+            expiresIn: config.get<string>('JWT_EXPIRES_IN') || '7d',
+          },
+        };
+      },
       inject: [ConfigService],
+      global: true, // 全局模块任何地方可使用
     }),
     DatabaseModule,
     InterviewModule,

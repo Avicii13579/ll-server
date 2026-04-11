@@ -27,11 +27,16 @@ import { RoleGuard, Roles } from 'src/role/role.guard';
 import { HttpExceptionFilter } from 'src/common/filters/http-exceptions.filter';
 import { ValidationExceptionFilter } from 'src/common/filters/validation-exceptions.filter';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ApiTags } from '@nestjs/swagger';
+import { RegisterDto } from './dto/register.dto';
+import { ResponseUtil } from 'src/common/utils/response.util';
+import { LoginDto } from './dto/login.dto';
 
 interface AuthenticatedRequest extends Request {
   user: JwtAuthUser;
 }
 
+@ApiTags('用户')
 @Controller('users')
 @UseFilters(HttpExceptionFilter)
 // @UseGuards(AuthGuard) // 使用守卫
@@ -109,5 +114,21 @@ export class UserController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number): Promise<User | null> {
     return this.userService.delete(id.toString());
+  }
+
+  /**
+   * 注册
+   */
+  @Post('register')
+  async register(@Body() registerDto: RegisterDto) {
+    const result = await this.userService.register(registerDto);
+    return ResponseUtil.success(result, '注册成功');
+  }
+
+  /** 登陆 */
+  @Post('login')
+  async login(@Body() loginDto: LoginDto) {
+    const result = await this.userService.login(loginDto);
+    return ResponseUtil.success(result, '登录成功');
   }
 }

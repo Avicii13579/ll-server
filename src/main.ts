@@ -56,6 +56,9 @@ async function bootstrap() {
     }),
   );
 
+  // 启用 CORS
+  app.enableCors();
+
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap().catch((err) => {
