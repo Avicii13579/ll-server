@@ -31,6 +31,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { ResponseUtil } from 'src/common/utils/response.util';
 import { LoginDto } from './dto/login.dto';
+import { Public } from 'src/auth/public.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: JwtAuthUser;
@@ -42,13 +43,17 @@ interface AuthenticatedRequest extends Request {
 // @UseGuards(AuthGuard) // 使用守卫
 // 控制器级别的拦截 支持多个
 // @UseInterceptors(LoggingInterceptor, CatchInterceptor)
+// jwt Nest 文档里 Passport 集成写明：validate() 的返回值会被当作“已认证用户”，并挂到请求上（文档里写的是 req.user）。
+@UseGuards(JwtAuthGuard)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('info')
-  @UseGuards(JwtAuthGuard)
-  getInfo(@Req() req: AuthenticatedRequest) {
-    return req.user;
+  // 获取前必须提供有效
+  async getInfo(@Req() req: AuthenticatedRequest) {
+    const { userId } = req.user;
+    const userInfo = await this.userService.getUserInfo(userId);
+    return ResponseUtil.success(userInfo, '获取成功');
   }
 
   /**
@@ -77,13 +82,13 @@ export class UserController {
    * @param id - 用户ID
    * @returns 用户对象或undefined
    */
-  @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<User | null> {
-    if (id > 1000) {
-      throw new NotFoundException(`用户 ID ${id} 不存在`);
-    }
-    return this.userService.findOne(id.toString());
-  }
+  // @Get(':id')
+  // async findOne(@Param('id', ParseIntPipe) id: number): Promise<User | null> {
+  //   if (id > 1000) {
+  //     throw new NotFoundException(`用户 ID ${id} 不存在`);
+  //   }
+  //   return this.userService.findOne(id.toString());
+  // }
 
   /**
    * 创建新用户
@@ -119,6 +124,7 @@ export class UserController {
   /**
    * 注册
    */
+  @Public() // 不用jwt 校验
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
     const result = await this.userService.register(registerDto);
@@ -126,6 +132,7 @@ export class UserController {
   }
 
   /** 登陆 */
+  @Public()
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
     const result = await this.userService.login(loginDto);

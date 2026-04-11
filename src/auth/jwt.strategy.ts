@@ -17,21 +17,26 @@ export interface JwtAuthUser {
   roles: string[];
 }
 
+// 允许 JwtStrategy 被 NestJS 依赖注入管理
 @Injectable()
+// JwtStrategy 继承 PassportStrategy，有了 jwt 的验证能力
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private configService: ConfigService) {
+    // 给父类构造函数，传参数
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'secret-key',
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // 获取 token
+      ignoreExpiration: false, // 不忽略 jwt 的过期时间
+      secretOrKey: configService.get<string>('JWT_SECRET') || 'secret-key', // 获取密钥
     });
   }
 
+  // 校验 jwt
   validate(payload: JwtPayload): JwtAuthUser {
     if (!payload.userId) {
       throw new UnauthorizedException('Token 无效');
     }
     return {
+      // 注意这个返回对象会被附加到 request.user
       userId: payload.userId,
       username: payload.username,
       roles: payload.roles ?? ['user'],

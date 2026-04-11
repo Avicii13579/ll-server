@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -29,12 +30,17 @@ export class UserService {
   }
 
   /**
-   * 根据ID查询单个用户
-   * @param id - 用户ID
-   * @returns 用户对象
+   * 获取用户信息
    */
-  async findOne(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+  async getUserInfo(userId: string) {
+    const user = await this.userModel.findById(userId).lean(); // lean() 返回普通 js 对象
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+    // 不返回密码
+    delete user.password;
+
+    return user;
   }
 
   /**

@@ -7,7 +7,7 @@ import {
 import { Request } from 'express';
 import { Observable } from 'rxjs';
 
-// 认证守卫
+// 认证守卫：已被 jwt 代替
 
 @Injectable()
 export class AuthGuard implements CanActivate {

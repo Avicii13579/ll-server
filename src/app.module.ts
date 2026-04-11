@@ -4,7 +4,7 @@ import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
 import { LoggerMiddleware } from './common/middleware/log.middleware';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 // import { AuthGuard } from './auth/auth.guard';
 import { JwtModule } from '@nestjs/jwt';
@@ -16,7 +16,6 @@ import { ConfigValidationSchema } from './config/config.schema';
 import { DatabaseModule } from './database/database.module';
 import { InterviewModule } from './interview/interview.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { getTokenExpirationSeconds } from './common/utils/jwt.util';
 
 @Module({
   imports: [
@@ -50,7 +49,7 @@ import { getTokenExpirationSeconds } from './common/utils/jwt.util';
   ],
   controllers: [AppController],
   providers: [
-    JwtStrategy,
+    JwtStrategy, // 全局校验可用
     AppService,
     LoggerMiddleware,
     {
@@ -62,7 +61,7 @@ import { getTokenExpirationSeconds } from './common/utils/jwt.util';
       useClass: LoggingInterceptor,
     },
     // {
-    //   provide: APP_GUARD,
+    //   provide: APP_GUARD, // 注意这个已被 jwt 代替
     //   useClass: AuthGuard,
     // },
     {
