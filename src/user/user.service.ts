@@ -9,14 +9,19 @@ import { Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
+import {
+  ConsumptionRecord,
+  ConsumptionRecordDocument,
+} from 'src/interview/schemas/consumption-record.schema';
 import { RegisterDto } from './dto/register.dto';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 @Injectable()
 export class UserService {
   constructor(
-    // User.name 注入 Model； Model<UserDocument> Mongoose 类型
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(ConsumptionRecord.name)
+    private consumptionRecordModel: Model<ConsumptionRecordDocument>,
     private readonly jwtService: JwtService,
   ) {}
   /**
@@ -139,5 +144,67 @@ export class UserService {
       token,
       user: userInfo,
     };
+  }
+
+  /**
+   * 获取用户消费记录
+   */
+  async getUserConsumptionRecords(
+    userId: string,
+    options?: { skip: number; limit: number },
+  ) {
+    const skip = options?.skip || 0;
+    const limit = options?.limit || 20;
+
+    const records = await this.consumptionRecordModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const stats = await this.consumptionRecordModel.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          successCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] },
+          },
+          failedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] },
+          },
+          totalCost: { $sum: '$estimatedCost' },
+        },
+      },
+    ]);
+
+    return { records, stats };
+  }
+
+  async updateUser(userId: string, updateUserDto: UpdateUserDto) {
+    // 如果更新邮箱，检查邮箱是否已被使用
+    if (updateUserDto.email) {
+      const existingUser = await this.userModel.findOne({
+        email: updateUserDto.email,
+        _id: { $ne: userId }, // 排除当前用户
+      });
+
+      if (existingUser) {
+        throw new BadRequestException('邮箱已被使用');
+      }
+    }
+
+    const user = await this.userModel.findByIdAndUpdate(userId, updateUserDto, {
+      new: true,
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    delete user.password;
+    return user;
   }
 }

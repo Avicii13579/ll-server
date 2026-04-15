@@ -3,11 +3,11 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
   Put,
+  Query,
   Req,
   UseFilters,
   UseGuards,
@@ -27,7 +27,7 @@ import { RoleGuard, Roles } from 'src/role/role.guard';
 import { HttpExceptionFilter } from 'src/common/filters/http-exceptions.filter';
 import { ValidationExceptionFilter } from 'src/common/filters/validation-exceptions.filter';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { ResponseUtil } from 'src/common/utils/response.util';
 import { LoginDto } from './dto/login.dto';
@@ -137,5 +137,38 @@ export class UserController {
   async login(@Body() loginDto: LoginDto) {
     const result = await this.userService.login(loginDto);
     return ResponseUtil.success(result, '登录成功');
+  }
+
+  /**
+   * 获取用户消费记录（包括简历押题、专项面试、综合面试）
+   */
+  @Get('consumption-records')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '获取用户消费记录',
+    description:
+      '获取用户所有的功能消费记录，包括简历押题、专项面试、综合面试等',
+  })
+  async getUserConsumptionRecords(
+    @Req() req: AuthenticatedRequest,
+    @Query('skip') skip: number = 0,
+    @Query('limit') limit: number = 20,
+  ) {
+    const { userId } = req.user;
+    const result = await this.userService.getUserConsumptionRecords(userId, {
+      skip,
+      limit,
+    });
+    return ResponseUtil.success(result, '获取成功');
+  }
+
+  @Put('profile')
+  async updateUserProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    const { userId } = req.user;
+    const user = await this.userService.updateUser(userId, updateUserDto);
+    return ResponseUtil.success(user, '更新成功');
   }
 }
