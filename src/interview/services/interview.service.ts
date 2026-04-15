@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PromptTemplate } from '@langchain/core/prompts';
-import { JsonOutputParser } from '@langchain/core/output_parsers';
-import { AIModelFactory } from 'src/ai/ai-model.factory';
-import { RESUME_QUIZ_PROMPT } from '../prompts/resume-quiz.prompts';
-import { RESUME_ANALYSIS_PROMPT } from '../prompts/resume-analysis.prompts';
+import { ResumeAnalysisService } from './resume-analysis.service';
+import { ConversationContinuationService } from './conversation-continuation.service';
+import { SessionManager } from 'src/ai/services/session.manager';
+import { RESUME_ANALYSIS_SYSTEM_MESSAGE } from '../prompts/resume-analysis.prompts';
 
 @Injectable()
 export class InterviewService {
@@ -12,7 +11,9 @@ export class InterviewService {
   constructor(
     // @InjectModel(Interview.name) private interviewModel: Model<Interview>,
     private configService: ConfigService,
-    private aiModelFactory: AIModelFactory,
+    private sessionManager: SessionManager,
+    private resumeAnalysisService: ResumeAnalysisService,
+    private conversationContinuationService: ConversationContinuationService,
   ) {}
 
   /**
@@ -21,33 +22,83 @@ export class InterviewService {
    * jobDescription: 岗位要求
    * return 分析结果、工作年限、技能、匹配
    */
-  async analyzeResume(resumeContent: string, jobDescription: string) {
-    // 创建 prompt 模版
-    const prompt = PromptTemplate.fromTemplate(RESUME_ANALYSIS_PROMPT);
-    // 获取模型
-    const model = this.aiModelFactory.createDefaultModel();
-    const parser = new JsonOutputParser();
-    // 创建链： Prompt -> 模型 -> 解析器
-    const chain = prompt.pipe(model).pipe(parser);
-
-    // 执行链
+  async analyzeResume(
+    userId: string,
+    position: string,
+    resumeContent: string,
+    jobDescription: string,
+  ) {
     try {
-      this.logger.log('开始分析简历...');
-      // invoke 获取完整接过后返回，stream 实时反馈
-      const result = await chain.invoke({
-        resume_content: resumeContent,
-        job_description: jobDescription,
-      });
-      this.logger.log('简历分析完成');
-      return result;
+      // 第一步创建会话
+      const systemMessage = RESUME_ANALYSIS_SYSTEM_MESSAGE(position);
+      const sessionId = this.sessionManager.createSession(
+        userId,
+        position,
+        systemMessage,
+      );
+
+      this.logger.log(`创建会话： ${sessionId}`);
+
+      // 第二部：调用简历分析服务
+      const result = await this.resumeAnalysisService.analyze(
+        resumeContent,
+        jobDescription,
+      );
+
+      // 第三部：保存用户输入到会话历史
+      this.sessionManager.addMessage(
+        sessionId,
+        'user',
+        `简历内容：${resumeContent}`,
+      );
+
+      // 第四部：保存 AI 回答道会话历史
+      this.sessionManager.addMessage(
+        sessionId,
+        'assistant',
+        JSON.stringify(result),
+      );
+      this.logger.log(`简历分析完成，sessionId：${sessionId}`);
+
+      return {
+        sessionId,
+        analysis: result,
+      };
     } catch (error) {
-      this.logger.error('简历分析失败', error);
+      this.logger.error(`简历分析失败：${error}`);
       throw error;
     }
   }
 
-  // 获取面试信息，关联用户信息
-  // async getInterviewsWithUsers() {
-  //   return this.interviewModel.find().populate('user_id').exec();
-  // }
+  // 继续对话
+  async continueConversation(
+    sessionId: string,
+    userQuestion: string,
+  ): Promise<string> {
+    try {
+      // 第一步：添加用户问题道会话历史
+      this.sessionManager.addMessage(sessionId, 'user', userQuestion);
+
+      // 第二步：获取对话历史
+      const history = this.sessionManager.getRecentMessage(sessionId, 10);
+
+      this.logger.log(
+        `继续对话，sessionId：${sessionId}，历史消息数：${history.length}`,
+      );
+
+      // 第三步：调用专门的对话继续服务
+      const aiResponse =
+        await this.conversationContinuationService.continue(history);
+
+      // 第四步：保存AI 的回答到历史
+      this.sessionManager.addMessage(sessionId, 'assistant', aiResponse);
+
+      this.logger.log(`继续对话完成，sessionId：${sessionId}`);
+
+      return aiResponse;
+    } catch (error) {
+      this.logger.error(`继续对话失败：${error}`);
+      throw error;
+    }
+  }
 }

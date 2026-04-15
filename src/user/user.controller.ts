@@ -15,14 +15,13 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import type { User } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CatchInterceptor } from 'src/common/interceptors/catch.interceptor';
 // import { AuthGuard } from 'src/auth/auth.guard';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import type { JwtAuthUser } from 'src/auth/jwt.strategy';
+import type { AuthenticatedRequest } from 'src/auth/interfaces/authenticated-request.interface';
 import { RoleGuard, Roles } from 'src/role/role.guard';
 import { HttpExceptionFilter } from 'src/common/filters/http-exceptions.filter';
 import { ValidationExceptionFilter } from 'src/common/filters/validation-exceptions.filter';
@@ -32,10 +31,6 @@ import { RegisterDto } from './dto/register.dto';
 import { ResponseUtil } from 'src/common/utils/response.util';
 import { LoginDto } from './dto/login.dto';
 import { Public } from 'src/auth/public.decorator';
-
-interface AuthenticatedRequest extends Request {
-  user: JwtAuthUser;
-}
 
 @ApiTags('用户')
 @Controller('users')

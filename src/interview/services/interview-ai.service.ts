@@ -30,8 +30,8 @@ export class InterviewAIService {
   }
 
   // 使用模型
-  async someMethod() {
-    const model = this.initializeModel(0.7);
-    // 在链中使用
-  }
+  // async someMethod() {
+  //   const model = this.initializeModel(0.7);
+  //   // 在链中使用
+  // }
 }

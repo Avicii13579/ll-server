@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { CommonModule } from 'src/common/common.module';
 import { InterviewController } from './interview.controller';
 import { InterviewService } from './services/interview.service';
-import { EventService } from 'src/common/services/event.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Interview, InterviewSchema } from './schemas/interview.schema';
 import { AIModule } from 'src/ai/ai.module';
+import { ResumeAnalysisService } from './services/resume-analysis.service';
+import { ConversationContinuationService } from './services/conversation-continuation.service';
 
 @Module({
   imports: [
@@ -16,6 +17,10 @@ import { AIModule } from 'src/ai/ai.module';
     ]),
   ],
   controllers: [InterviewController],
-  providers: [InterviewService, EventService],
+  providers: [
+    InterviewService,
+    ResumeAnalysisService,
+    ConversationContinuationService,
+  ],
 })
 export class InterviewModule {}
