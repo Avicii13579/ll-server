@@ -1,9 +1,25 @@
-import { Body, Controller, Post, Req, Sse, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  Post,
+  Req,
+  Res,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import { Observable, map } from 'rxjs';
 import { EventService } from 'src/common/services/event.service';
 import { InterviewService } from './services/interview.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from 'src/auth/interfaces/authenticated-request.interface';
+import type { Response } from 'express';
+import { ResumeQuizDto } from './dto/resume-quiz.dto';
+import {
+  AnswerMockInterviewDto,
+  StartMockInterviewDto,
+} from './dto/mock-interview.dto';
+import { ResponseUtil } from 'src/common/utils/response.util';
 
 // 实现 SSE 连接
 
@@ -63,5 +79,198 @@ export class InterviewController {
         response: result,
       },
     };
+  }
+
+  // 简历押题
+  // curl  sumeURL": "https://res.lgdsunday.club/sunday-resume.pdf","company": "阿里巴 巴", "positionName": "前端开发工程师", "minSalary": 25, "maxSalary": 35, "jd":"熟练掌 握 Vue.js 框架及生态（Vue2、主 Vue3），能独立完成中大型项目的前端开发，精通 HTML5、css3、javascript（ES6），熟悉Flex、Grid等布局方式，了么前端工程化（webpack、vite），能解 决不同浏览器兼容问题，有前端性能优化经验者优先"}'
+  @Post('resume/quiz/stream')
+  @UseGuards(JwtAuthGuard)
+  resumeQuizStream(
+    @Body() dto: ResumeQuizDto,
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: false }) res: Response,
+  ): void {
+    const userId = req.user.userId;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲
+    // 订阅进度事件
+    const subscription = this.interviewService
+      .generateResumeQuizWithProgress(userId, dto)
+      .subscribe({
+        next: (event) => {
+          // 发送 SSE 事件
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        },
+        error: (error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          // 发送错误事件
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: message,
+            })}\n\n`,
+          );
+          res.end();
+        },
+        complete: () => {
+          // 完成后关闭连接
+          res.end();
+        },
+      });
+
+    // 客户端断开连接时取消订阅
+    req.on('close', () => {
+      subscription.unsubscribe();
+    });
+  }
+
+  @Post('mock/start')
+  @UseGuards(JwtAuthGuard)
+  async startMockInterview(
+    @Body() dto: StartMockInterviewDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    const userId = req.user.userId;
+
+    // 设置 SSE 响应头
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲
+    res.setHeader('Access-Control-Allow-Origin', '*'); // 如果需要CORS
+
+    // 发送初始注释，保持连接活跃
+    res.write(': connected\n\n');
+    // flush 数据（如果可用）
+    if (typeof (res as any).flush === 'function') {
+      (res as any).flush();
+    }
+
+    // 订阅进度事件
+    const subscription = this.interviewService
+      .startMockInterviewWithStream(userId, dto)
+      .subscribe({
+        next: (event) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          // flush 数据（如果可用）
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        },
+        error: (error) => {
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: error.message,
+            })}\n\n`,
+          );
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+          res.end();
+        },
+        complete: () => {
+          res.end();
+        },
+      });
+
+    // 客户端断开连接时取消订阅
+    req.on('close', () => {
+      subscription.unsubscribe();
+    });
+  }
+
+  /**
+   * 回答面试问题 - SSE流式响应
+   */
+  @Post('mock/answer')
+  @UseGuards(JwtAuthGuard)
+  async answerMockInterview(
+    @Body() dto: AnswerMockInterviewDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    const userId = req.user.userId;
+
+    // 设置 SSE 响应头
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲
+    res.setHeader('Access-Control-Allow-Origin', '*'); // 如果需要CORS
+
+    // 发送初始注释，保持连接活跃
+    res.write(': connected\n\n');
+    // flush 数据（如果可用）
+    if (typeof (res as any).flush === 'function') {
+      (res as any).flush();
+    }
+
+    // 订阅进度事件
+    const subscription = this.interviewService
+      .answerMockInterviewWithStream(userId, dto.sessionId, dto.answer)
+      .subscribe({
+        next: (event) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          // flush 数据（如果可用）
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        },
+        error: (error) => {
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: error.message,
+            })}\n\n`,
+          );
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+          res.end();
+        },
+        complete: () => {
+          res.end();
+        },
+      });
+
+    // 客户端断开连接时取消订阅
+    req.on('close', () => {
+      subscription.unsubscribe();
+    });
+  }
+
+  /**
+   * 结束面试（用户主动结束）
+   */
+  @Post('mock/end/:resultId')
+  @UseGuards(JwtAuthGuard)
+  async endMockInterview(@Param('resultId') resultId: string, @Req() req: any) {
+    await this.interviewService.endMockInterview(req.user.userId, resultId);
+
+    return ResponseUtil.success({ resultId }, '面试已结束，正在生成分析报告');
+  }
+
+  /**
+   * 暂停面试
+   */
+  @Post('mock/pause/:resultId')
+  @UseGuards(JwtAuthGuard)
+  async pauseMockInterview(
+    @Param('resultId') resultId: string,
+    @Req() req: any,
+  ) {
+    const result = await this.interviewService.pauseMockInterview(
+      req.user.userId,
+      resultId,
+    );
+
+    return ResponseUtil.success(result, '面试已暂停，进度已保存');
   }
 }
