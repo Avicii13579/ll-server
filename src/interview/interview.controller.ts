@@ -273,4 +273,20 @@ export class InterviewController {
 
     return ResponseUtil.success(result, '面试已暂停，进度已保存');
   }
+  /**
+   * 恢复面试
+   */
+  @Post('mock/resume/:resultId')
+  @UseGuards(JwtAuthGuard)
+  async resumeMockInterview(
+    @Param('resultId') resultId: string,
+    @Req() req: any,
+  ) {
+    const result = await this.interviewService.resumeMockInterview(
+      req.user.userId,
+      resultId,
+    );
+
+    return ResponseUtil.success(result, '面试已恢复，可以继续回答');
+  }
 }
