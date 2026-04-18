@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -16,8 +17,11 @@ import {
 import { RegisterDto } from './dto/register.dto';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
+import { LoggerSanitizer } from 'src/common/utils/logger-sanitize.util';
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(ConsumptionRecord.name)
@@ -88,6 +92,9 @@ export class UserService {
 
   /** 注册 */
   async register(registerDto: RegisterDto) {
+    this.logger.log(
+      `用户注册：${JSON.stringify(LoggerSanitizer.sanitize(registerDto))}`,
+    );
     const { username, email, password } = registerDto;
     // 检查用户名是否存在
     const existingUser = await this.userModel.findOne({

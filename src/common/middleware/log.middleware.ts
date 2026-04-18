@@ -1,5 +1,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
+import { AsyncLocalStorage } from 'async_hooks';
 import { Request, Response, NextFunction } from 'express';
+import { v4 as uuid } from 'uuid';
 
 /**
  * 接口请求处理顺序：
@@ -11,30 +13,35 @@ import { Request, Response, NextFunction } from 'express';
 /**
  * 请求拦截，记录到日志里
  */
+// 使用 AsyncLocalStorage 来存储 TraceID
+// 这样任何地方都能访问到它，而不用传参
+export const traceIdStorage = new AsyncLocalStorage<string>();
+
 @Injectable()
-export class LoggerMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(LoggerMiddleware.name);
+export class TraceIdMiddleware implements NestMiddleware {
+  private readonly logger = new Logger(TraceIdMiddleware.name);
 
   use(req: Request, res: Response, next: NextFunction) {
-    const { method, originalUrl, ip, headers } = req;
-    const useAgent = headers['user-agent'] || '';
-    const startTime = Date.now();
+    // 从请求头中获取 TraceID，如果没有就生成一个
+    const traceId = (req.headers['x-trace-id'] as string) || uuid();
 
-    // 开始记录
-    this.logger.log(`${method} ${originalUrl}---${ip}---${useAgent}`);
+    // 将 TraceID 存储在 AsyncLocalStorage 中
+    // 这样 Service 中就能访问到它
+    traceIdStorage.run(traceId, () => {
+      // 将 TraceID 加到响应头中，前端可以看到
+      res.setHeader('x-trace-id', traceId);
 
-    // 监听完成事件
-    res.on('finish', () => {
-      const { statusCode } = res;
-      const responseTime = Date.now() - startTime;
-      const logLevel = statusCode >= 400 ? 'error' : 'log';
+      // 记录请求开始
+      this.logger.log(`[${traceId}] 请求开始: ${req.method} ${req.url}`);
 
-      // 记录响应
-      this.logger[logLevel](
-        `<- ${method} ${originalUrl} ${statusCode} --- ${responseTime}ms ${ip}`,
-      );
+      // 监听响应完成
+      res.on('finish', () => {
+        this.logger.log(
+          `[${traceId}] 请求结束: ${req.method} ${req.url} - 状态码: ${res.statusCode}`,
+        );
+      });
+
+      next();
     });
-
-    next();
   }
 }

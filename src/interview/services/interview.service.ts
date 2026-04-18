@@ -37,6 +37,11 @@ import {
   AIInterviewResult,
   AIInterviewResultDocument,
 } from '../schemas/ai-interview-result.schema';
+import {
+  ReportStatus,
+  ResumeQuizAnalysisDto,
+} from '../dto/analysis-report.dto';
+import { traceIdStorage } from 'src/common/middleware/log.middleware';
 
 /**
  * 进度事件
@@ -235,6 +240,7 @@ export class InterviewService {
     const recordId = uuidv4();
     const resultId = uuidv4();
     console.log('recordId', recordId);
+    const traceId = traceIdStorage.getStore();
     // 处理错误
     try {
       // ========== 步骤 0: 幂等性检查 ==========
@@ -255,7 +261,7 @@ export class InterviewService {
           if (existingRecord.status === ConsumptionStatus.SUCCESS) {
             // 之前已经成功生成过，直接返回已有的结果
             this.logger.log(
-              `重复请求，返回已有结果: requestId=${dto.requestId}`,
+              `${traceId} 重复请求，返回已有结果: requestId=${dto.requestId}`,
             );
 
             // 查询之前生成的结果
@@ -342,7 +348,7 @@ export class InterviewService {
         startedAt: new Date(), // 记录开始时间
       });
 
-      this.logger.log(`✅ 消费记录创建成功: recordId=${recordId}`);
+      this.logger.log(`${traceId} ✅ 消费记录创建成功: recordId=${recordId}`);
 
       // ========== 阶段 1: 准备阶段==========
       this.emitProgress(
@@ -2078,6 +2084,301 @@ export class InterviewService {
         `❌ [步骤4] 更新标准答案异常: ${error.message}`,
         error.stack,
       );
+    }
+  }
+
+  /**
+   * 获取分析报告
+   * 根据结果ID自动识别类型并返回对应的分析报告
+   * 统一返回 ResumeQuizAnalysisDto 格式
+   * @param userId 用户ID
+   * @param resultId 结果ID
+   * @returns 分析报告
+   */
+  async getAnalysisReport(userId: string, resultId: string): Promise<any> {
+    // 首先尝试从简历押题结果中查找
+    const resumeQuizResult = await this.resumeQuizResultModel.findOne({
+      resultId,
+      userId,
+    });
+
+    if (resumeQuizResult) {
+      const result = this.generateResumeQuizAnalysis(resumeQuizResult);
+      return result;
+    }
+
+    // 然后尝试从AI面试结果中查找
+    const aiInterviewResult = await this.aiInterviewResultModel.findOne({
+      resultId,
+      userId,
+    });
+
+    if (aiInterviewResult) {
+      // 检查报告生成状态
+      const reportStatus =
+        aiInterviewResult.reportStatus || ReportStatus.PENDING;
+
+      if (reportStatus === ReportStatus.PENDING) {
+        this.generateAssessmentReportAsync(resultId);
+      }
+
+      if (
+        reportStatus === ReportStatus.PENDING ||
+        reportStatus === ReportStatus.GENERATING
+      ) {
+        throw new BadRequestException(
+          '评估报告正在生成中，请稍后再试（预计1-2分钟）',
+        );
+      }
+
+      // 再发生错误后，再次尝试生成
+      if (reportStatus === ReportStatus.FAILED) {
+        this.generateAssessmentReportAsync(resultId);
+        throw new BadRequestException(
+          '评估报告正在生成中，请稍后再试（预计1-2分钟）',
+        );
+      }
+
+      // 报告已生成，转换为统一格式返回
+      return aiInterviewResult;
+    }
+
+    throw new NotFoundException('未找到该分析报告');
+  }
+
+  /**
+   * @description 生成并返回一份简历押题分析报告。
+   * 该函数不执行AI分析，而是将已存在的AI分析结果（存储在数据库中）格式化为DTO（数据传输对象），
+   * 同时会更新该报告的查看次数和最后查看时间。
+   * @param {ResumeQuizResultDocument} result - 从数据库中获取的简历押题结果文档，其中包含了AI已经生成的所有分析数据。
+   * @returns {Promise<ResumeQuizAnalysisDto>} - 一个Promise，解析后为格式化好的分析报告DTO，用于前端展示或API返回。
+   */
+  private async generateResumeQuizAnalysis(
+    result: ResumeQuizResultDocument,
+  ): Promise<ResumeQuizAnalysisDto> {
+    // --- 1. 更新文档的统计数据 ---
+    // 每次调用此函数，都认为报告被查看了一次。
+    // 使用 findByIdAndUpdate 原子地更新数据库中的文档，避免并发问题。
+    await this.resumeQuizResultModel.findByIdAndUpdate(result._id, {
+      // `$inc` 操作符会将 `viewCount` 字段的值加 1。
+      $inc: { viewCount: 1 },
+      // `$set` 操作符会更新 `lastViewedAt` 字段为当前最新时间。
+      $set: { lastViewedAt: new Date() },
+    });
+
+    // --- 2. 获取并格式化创建时间 ---
+    // Mongoose的timestamps功能会自动添加createdAt字段，但这里做了兼容处理。
+    // 检查文档中是否存在 createdAt 字段。
+    const createdAt = (result as any).createdAt
+      ? // 如果存在，则将其转换为标准的 ISO 8601 格式字符串 (例如 "2023-10-27T10:00:00.000Z")。
+        new Date((result as any).createdAt).toISOString()
+      : // 如果不存在，则使用当前时间作为备用值。
+        new Date().toISOString();
+
+    // --- 3. 构造并返回数据传输对象 (DTO) ---
+    // 这个返回的对象是专门为API响应或前端消费而设计的。
+    // 它直接使用了 `result` 对象中由AI预先生成的分析数据。
+    return {
+      // --- 基础信息 ---
+      resultId: result.resultId, // 结果的唯一标识ID
+      type: 'resume_quiz', // 报告类型
+      company: result.company || '', // 目标公司，如果不存在则返回空字符串
+      position: result.position, // 目标职位
+      salaryRange: result.salaryRange, // 薪资范围
+      createdAt, // 格式化后的创建时间
+
+      // --- AI生成的分析数据 ---
+      // 下面的字段都是直接从数据库文档中获取的，如果某个字段不存在，则提供一个安全的默认值。
+      matchScore: result.matchScore || 0, // 匹配度得分，默认为 0
+      matchLevel: result.matchLevel || '中等', // 匹配等级，默认为 '中等'
+      matchedSkills: result.matchedSkills || [], // 已匹配的技能列表，默认为空数组
+      missingSkills: result.missingSkills || [], // 缺失的技能列表，默认为空数组
+      knowledgeGaps: result.knowledgeGaps || [], // 知识盲区，默认为空数组
+      // 学习优先级列表，这里做了一次 .map 操作以确保每个元素的结构和类型都符合 DTO 的定义
+      learningPriorities: (result.learningPriorities || []).map((lp) => ({
+        topic: lp.topic,
+        // 将 `priority` 字段显式地转换为 'high' | 'medium' | 'low' 联合类型，增强类型安全
+        priority: lp.priority as 'high' | 'medium' | 'low',
+        reason: lp.reason,
+      })),
+      radarData: result.radarData || [], // 用于雷达图的数据，默认为空数组
+      strengths: result.strengths || [], // 优势分析，默认为空数组
+      weaknesses: result.weaknesses || [], // 劣势分析，默认为空数组
+      summary: result.summary || '', // 综合总结，默认为空字符串
+      interviewTips: result.interviewTips || [], // 面试建议，默认为空数组
+
+      // --- 统计信息 ---
+      // 使用可选链 `?.` 安全地获取问题数量，如果 `result.questions` 不存在，则返回 undefined，再通过 `|| 0` 设置为0
+      totalQuestions: result.questions?.length || 0,
+      questionDistribution: result.questionDistribution || {}, // 问题分布情况，默认为空对象
+      viewCount: result.viewCount, // 最新的查看次数
+    };
+  }
+
+  /**
+   * 异步生成评估报告
+   * 在面试结束后后台静默生成，不阻塞接口返回
+   */
+  private async generateAssessmentReportAsync(resultId: string): Promise<void> {
+    try {
+      // 从数据库读取面试记录
+      const dbResult = await this.aiInterviewResultModel.findOne({ resultId });
+
+      if (!dbResult) {
+        this.logger.error(`❌ 未找到面试记录: resultId=${resultId}`);
+        throw new NotFoundException(`未找到面试记录: ${resultId}`);
+      }
+
+      // 如果当前的状态为 “生成中”，就不需要进行后续的操作了
+      if (dbResult.reportStatus === 'generating') {
+        this.logger.log(`🎯 评估报告正在生成中: resultId=${resultId}`);
+        return;
+      }
+
+      // 更新状态为"生成中"
+      await this.aiInterviewResultModel.findOneAndUpdate(
+        { resultId },
+        { $set: { reportStatus: 'generating' } },
+      );
+
+      // 从数据库的 qaList 中提取问答对
+      const qaList: Array<{
+        question: string;
+        answer: string;
+        standardAnswer?: string;
+      }> = (dbResult.qaList.filter((qa) => qa) || []).map((qa) => ({
+        question: qa?.question,
+        answer: qa?.answer,
+        standardAnswer: qa?.standardAnswer,
+      }));
+
+      this.logger.log(
+        `🎯 开始异步生成评估报告: resultId=${resultId}, qaCount=${qaList.length}`,
+      );
+
+      // 数据验证：检查是否有有效的问答对
+      if (qaList.length === 0) {
+        this.logger.warn(`⚠️ 没有有效的问答记录，生成默认低分报告`);
+
+        // 直接保存默认的低分评估，不调用 AI
+        await this.aiInterviewResultModel.findOneAndUpdate(
+          { resultId },
+          {
+            $set: {
+              overallScore: 30,
+              overallLevel: '需提升',
+              overallComment:
+                '本次面试未能有效进行，候选人没有回答任何问题，无法评估专业能力。建议重新安排面试。',
+              radarData: [
+                { dimension: '技术能力', score: 0, description: '未评估' },
+                { dimension: '项目经验', score: 0, description: '未评估' },
+                { dimension: '问题解决', score: 0, description: '未评估' },
+                { dimension: '学习能力', score: 0, description: '未评估' },
+                { dimension: '沟通表达', score: 0, description: '未评估' },
+              ],
+              strengths: [],
+              weaknesses: ['未参与面试问答', '无法评估专业能力'],
+              improvements: [
+                {
+                  category: '面试准备',
+                  suggestion: '建议充分准备后重新参加面试',
+                  priority: 'high',
+                },
+              ],
+              fluencyScore: 0,
+              logicScore: 0,
+              professionalScore: 0,
+              reportStatus: 'completed',
+              reportGeneratedAt: new Date(),
+            },
+          },
+        );
+
+        this.logger.log(`✅ 默认低分报告已生成: resultId=${resultId}`);
+        return;
+      }
+
+      // 计算回答质量指标
+      const totalAnswerLength = qaList.reduce(
+        (sum, qa) => sum + qa.answer.length,
+        0,
+      );
+      const avgAnswerLength = totalAnswerLength / qaList.length;
+      const emptyAnswers = qaList.filter(
+        (qa) => qa.answer.trim().length < 10,
+      ).length;
+
+      this.logger.log(
+        `📊 回答质量统计: 总问题=${qaList.length}, 平均回答长度=${Math.round(avgAnswerLength)}, 无效回答=${emptyAnswers}`,
+      );
+
+      // 从 sessionState 中获取 resumeContent（如果存在）
+      const resumeContent = dbResult.sessionState?.resumeContent || '';
+
+      // 转换 interviewType：数据库中是 'special' | 'behavior'，AI 服务需要 'special' | 'comprehensive'
+      const interviewType =
+        dbResult.interviewType === 'special' ? 'special' : 'comprehensive';
+
+      // 调用 AI 生成评估报告
+      const assessment = await this.aiService.generateInterviewAssessmentReport(
+        {
+          interviewType,
+          company: dbResult.company || '',
+          positionName: dbResult.position || '',
+          jd: dbResult.jobDescription || '',
+          resumeContent,
+          qaList,
+          // 传递额外的质量指标供 AI 参考
+          answerQualityMetrics: {
+            totalQuestions: qaList.length,
+            avgAnswerLength: Math.round(avgAnswerLength),
+            emptyAnswersCount: emptyAnswers,
+          },
+        },
+      );
+
+      // 更新数据库中的评估数据
+      await this.aiInterviewResultModel.findOneAndUpdate(
+        { resultId },
+        {
+          $set: {
+            overallScore: assessment.overallScore,
+            overallLevel: assessment.overallLevel,
+            overallComment: assessment.overallComment,
+            radarData: assessment.radarData,
+            strengths: assessment.strengths,
+            weaknesses: assessment.weaknesses,
+            improvements: assessment.improvements,
+            fluencyScore: assessment.fluencyScore,
+            logicScore: assessment.logicScore,
+            professionalScore: assessment.professionalScore,
+            reportStatus: 'completed',
+            reportGeneratedAt: new Date(),
+          },
+        },
+      );
+
+      this.logger.log(
+        `✅ 评估报告生成成功: resultId=${resultId}, overallScore=${assessment.overallScore}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `❌ 评估报告生成失败: resultId=${resultId}, error=${error.message}`,
+        error.stack,
+      );
+
+      // 更新状态为"失败"
+      await this.aiInterviewResultModel.findOneAndUpdate(
+        { resultId },
+        {
+          $set: {
+            reportStatus: 'failed',
+            reportError: error.message,
+          },
+        },
+      );
+
+      throw error;
     }
   }
 }

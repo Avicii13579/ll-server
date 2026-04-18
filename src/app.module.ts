@@ -2,7 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
-import { LoggerMiddleware } from './common/middleware/log.middleware';
+import { TraceIdMiddleware } from './common/middleware/log.middleware';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -16,6 +16,8 @@ import { ConfigValidationSchema } from './config/config.schema';
 import { DatabaseModule } from './database/database.module';
 import { InterviewModule } from './interview/interview.module';
 import { MongooseModule } from '@nestjs/mongoose';
+import { WinstonModule } from 'nest-winston';
+import * as winston from 'winston';
 
 @Module({
   imports: [
@@ -27,6 +29,17 @@ import { MongooseModule } from '@nestjs/mongoose';
         allowUnknown: true, // 允许出现ConfigValidationSchema为定义的变量
         abortEarly: true, // 遇到第一错误就停下
       },
+    }),
+    WinstonModule.forRoot({
+      format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.ms(),
+        winston.format.json(),
+      ),
+      defaultMeta: {
+        service: 'll-server',
+      },
+      transports: [new winston.transports.Console()],
     }),
     MongooseModule.forRoot('mongodb://localhost:27017/my_nest_app'),
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -51,7 +64,7 @@ import { MongooseModule } from '@nestjs/mongoose';
   providers: [
     JwtStrategy, // 全局校验可用
     AppService,
-    LoggerMiddleware,
+    // LoggerMiddleware,
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor,
@@ -74,6 +87,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // 将中间件应用到所有路由上
-    consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(TraceIdMiddleware).forRoutes('*');
   }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Req,
@@ -288,5 +289,23 @@ export class InterviewController {
     );
 
     return ResponseUtil.success(result, '面试已恢复，可以继续回答');
+  }
+
+  /**
+   * 获取分析报告
+   * 统一接口，根据 resultId 自动识别类型（简历押题/专项面试/综合面试）
+   */
+  @Get('analysis/report/:resultId')
+  @UseGuards(JwtAuthGuard)
+  async getAnalysisReport(
+    @Param('resultId') resultId: string,
+    @Req() req: any,
+  ) {
+    const report = await this.interviewService.getAnalysisReport(
+      req.user.userId,
+      resultId,
+    );
+
+    return ResponseUtil.success(report, '查询成功');
   }
 }

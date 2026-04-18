@@ -7,12 +7,27 @@ import {
 } from '@nestjs/swagger';
 import rateLimit from 'express-rate-limit';
 import { AppModule } from './app.module';
+import { createWinstonLogger } from './common/logger/winston.config';
+import { WINSTON_MODULE_NEST_PROVIDER, WinstonModule } from 'nest-winston';
 
 /** Apifox「导入 → OpenAPI」里填的地址：本机服务 + 该路径（与 jsonDocumentUrl 一致） */
 const OPENAPI_JSON_PATH = 'openapi.json';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const nodeEnv = process.env.NODE_ENV || 'development';
+
+  // 创建 Winston logger
+  const winstonLogger = createWinstonLogger(nodeEnv);
+
+  // 创建 NestJS 应用，使用 Winston logger
+  const app = await NestFactory.create(AppModule, {
+    logger: WinstonModule.createLogger({
+      instance: winstonLogger,
+    }),
+  });
+
+  // 让所有的 NestJS 组件都用 Winston logger
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- @nestjs/swagger DocumentBuilder（tsc 可解析，eslint project 偶发误报） */
   const swaggerConfig: Omit<OpenAPIObject, 'paths'> = new DocumentBuilder()
