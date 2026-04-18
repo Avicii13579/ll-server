@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "types": ["node"], // 固定拉入 Node 的全局类型
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./build",
+    "rootDir": "./src",
+    "forceConsistentCasingInFileNames": true //文件路径大小写检查开关
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
